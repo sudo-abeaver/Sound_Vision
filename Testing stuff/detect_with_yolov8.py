@@ -19,6 +19,9 @@ def parse_args():
     p.add_argument("--model", "-m", default=os.path.join(os.path.dirname(__file__), "yolov8s.pt"), help="Path to yolov8 model file")
     p.add_argument("--output", "-o", default="output.jpg", help="Path to save annotated image")
     p.add_argument("--conf", default=0.25, type=float, help="Confidence threshold")
+    p.add_argument("--diagnose", action="store_true", help="Print model class names and a check for 'tree' then exit")
+    p.add_argument("--clip", action="store_true", help="Run a CLIP zero-shot image-level label check (no boxes)")
+    p.add_argument("--clip-labels", default=",".join(["tree","door","car","phone","laptop","computer","person","bicycle","bench","sign","dog","cat","chair","table","cup","bottle"]), help="Comma-separated labels to test with CLIP (used with --clip)")
     return p.parse_args()
 
 
@@ -48,6 +51,105 @@ def main():
 
     print(f"Loading model from: {args.model}")
     model = YOLO(args.model)
+
+    # Diagnostic mode: print available class names and exit
+    if args.diagnose:
+        # model.names might be a dict or list depending on ultralytics version
+        names = None
+        try:
+            names = getattr(model, 'names', None)
+        except Exception:
+            names = None
+
+        if names is None:
+            # try to run a dry prediction to extract names from a Results object
+            try:
+                tmp = model.predict(source=args.image, conf=args.conf, max_det=1)
+                rtmp = tmp[0]
+                names = getattr(rtmp, 'names', None)
+            except Exception:
+                names = None
+
+        if names is None:
+            print('Could not determine model class names programmatically.')
+        else:
+            # normalize into a list
+            if isinstance(names, dict):
+                items = [v for k, v in sorted(names.items())]
+            else:
+                items = list(names)
+            print('Model class names:')
+            for i, n in enumerate(items):
+                print(f'  {i}: {n}')
+
+            # check for 'tree' or related names
+            lower = [n.lower() for n in items]
+            suggestions = [s for s in ['tree', 'plant', 'potted plant', 'vegetation', 'bush', 'flower'] if any(s in x for x in lower)]
+            if any('tree' == x for x in lower) or 'tree' in ' '.join(lower):
+                print('\nThis model appears to include a "tree" class.')
+            else:
+                print('\nThis model does NOT include a "tree" class. Closest matches (if any):', suggestions or 'none')
+                print('Reason it may not detect trees: the model was likely trained on COCO which does not include "tree" as a detection class.')
+                print('Options: train/fine-tune a model with tree labels, use an open-vocabulary detector (Grounding DINO + SAM/CLIP), or use a specialized tree/tree-crown model (e.g., DeepForest).')
+        return
+
+    # CLIP zero-shot image-level check (no bounding boxes) -------------------------------------------------
+    if args.clip:
+        labels = [s.strip() for s in args.clip_labels.split(',') if s.strip()]
+        print(f"Running CLIP zero-shot check for labels: {labels}")
+        try:
+            import torch
+            from PIL import Image
+            from transformers import CLIPProcessor, CLIPModel
+        except Exception as e:
+            print("ERROR: CLIP dependencies not available. Install with: pip install transformers torch")
+            print("(For CUDA-enabled torch builds see https://pytorch.org/get-started/locally/)")
+            raise
+
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        print(f"Using device: {device}")
+
+        try:
+            processor = CLIPProcessor.from_pretrained('openai/clip-vit-base-patch32')
+            clip_model = CLIPModel.from_pretrained('openai/clip-vit-base-patch32').to(device)
+        except Exception as e:
+            print('Failed to load CLIP model:', e)
+            raise
+
+        # load image
+        try:
+            image = Image.open(args.image).convert('RGB')
+        except Exception as e:
+            print('Failed to open image for CLIP check:', e)
+            raise
+
+        # prepare text and image inputs
+        text_inputs = processor(text=labels, return_tensors='pt', padding=True)
+        image_inputs = processor(images=image, return_tensors='pt')
+        # move to device
+        for k, v in image_inputs.items():
+            image_inputs[k] = v.to(device)
+        for k, v in text_inputs.items():
+            text_inputs[k] = v.to(device)
+
+        with torch.no_grad():
+            image_emb = clip_model.get_image_features(**image_inputs)
+            text_emb = clip_model.get_text_features(**text_inputs)
+
+            # normalize
+            image_emb = image_emb / image_emb.norm(p=2, dim=-1, keepdim=True)
+            text_emb = text_emb / text_emb.norm(p=2, dim=-1, keepdim=True)
+
+            # scores (1 x N)
+            scores = (100.0 * image_emb @ text_emb.T).softmax(dim=-1)
+            scores = scores[0].cpu().tolist()
+
+        ranked = sorted(zip(labels, scores), key=lambda x: x[1], reverse=True)
+        print('\nCLIP zero-shot top matches:')
+        for label, score in ranked[:min(10, len(ranked))]:
+            print(f'  {label}: {score:.4f}')
+
+        return
 
     print(f"Running inference on: {args.image}")
     results = model.predict(source=args.image, conf=args.conf, save=False)
