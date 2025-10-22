@@ -1,0 +1,133 @@
+# Assistive Navigation System Configuration
+# =========================================
+
+# Ultrasonic Sensor Settings (HC-SR04)
+ultrasonic:
+  trig_pin: 23                    # GPIO pin for trigger
+  echo_pin: 24                    # GPIO pin for echo (use voltage divider!)
+  median_window: 5                # Number of readings for median filter
+  hysteresis: 0.1                 # Meters of hysteresis at zone boundaries
+  
+  # Distance zones (in meters)
+  # Adjust these based on your walking speed and reaction time
+  zones:
+    - min: 2.0                    # Silent zone
+      max: 999
+      beep_interval: 0
+      pitch: 0
+    
+    - min: 1.2                    # Low alert
+      max: 2.0
+      beep_interval: 0.65         # Beep every 650ms
+      pitch: 440                  # A4 note
+    
+    - min: 0.7                    # Medium alert
+      max: 1.2
+      beep_interval: 0.32         # Beep every 320ms
+      pitch: 660                  # E5 note
+    
+    - min: 0.45                   # High alert
+      max: 0.7
+      beep_interval: 0.15         # Beep every 150ms
+      pitch: 880                  # A5 note
+    
+    - min: 0.0                    # DANGER - continuous tone + "Stop"
+      max: 0.45
+      beep_interval: 0
+      pitch: 1100                 # High C#
+      continuous: true
+
+# Vision System Settings
+vision:
+  # TFLite Model paths (for original version)
+  scene_model: "models/scene_int8.tflite"
+  scene_labels: "labels/scene_labels.txt"
+  detect_model: "models/detect_int8.tflite"
+  detect_labels: "labels/detect_labels.txt"
+  
+  # YOLOv8 + CLIP Settings (for main_yolov8.py)
+  yolo_model: "models/yolov8n.pt"         # YOLOv8-nano (auto-downloads if missing)
+  yolo_conf: 0.5                          # Confidence threshold
+  yolo_imgsz: 320                         # Inference size (lower = faster)
+  clip_model: "openai/clip-vit-base-patch32"  # HuggingFace CLIP model
+  scene_labels:                           # CLIP zero-shot scene labels
+    - "forest"
+    - "park" 
+    - "beach"
+    - "urban street"
+    - "residential area"
+    - "indoor hallway"
+    - "corridor"
+    - "staircase"
+    - "museum gallery"
+    - "store"
+    - "plaza"
+    - "parking lot"
+  
+  # Timing
+  scene_inference_interval: 0.8   # Run scene classifier every 800ms (CLIP is slower)
+  detect_inference_interval: 1.0  # Run object detector every 1000ms
+  scene_stability_window: 6       # Require 6 consistent votes before scene change
+  
+  # Camera settings
+  camera_width: 640               # Higher res for YOLOv8
+  camera_height: 480
+  camera_fps: 15                  # Lower FPS to reduce CPU load
+
+# Audio Settings
+audio:
+  soundscape_volume: 0.7          # Normal background music volume (0.0-1.0)
+  ducked_volume: 0.3              # Volume when speaking/beeping
+  beep_volume: 0.6                # Collision beep volume
+  tts_volume: 0.8                 # Text-to-speech volume
+  crossfade_duration: 3.5         # Seconds to crossfade between soundscapes
+  speech_rate_limit: 5.0          # Minimum seconds between spoken cues
+  beep_duration: 0.08             # Duration of each beep in seconds
+
+# Scene to Soundscape Mapping
+# Maps detected scene classes to soundscape folders
+scene_mapping:
+  forest: "forest"
+  park: "park"
+  beach: "beach"
+  coast: "beach"
+  urban_street: "city"
+  street: "city"
+  residential: "residential"
+  indoor_hall: "indoor"
+  corridor: "indoor"
+  staircase: "indoor"
+  museum_gallery: "museum"
+  gallery: "museum"
+  store: "plaza"
+  plaza: "plaza"
+  parking_lot: "parking"
+  default: "indoor"
+
+# Art Detection Heuristic
+# Simple rectangular frame detection for museum/gallery mode
+art_detection:
+  enabled: true
+  min_area_percent: 12            # Minimum percentage of frame area
+  max_area_percent: 60            # Maximum percentage of frame area
+  edge_threshold: 100             # Canny edge detection threshold
+
+# Object Detection Priorities
+# Objects that trigger spoken announcements (YOLOv8 COCO classes)
+priority_objects:
+  - person
+  - bicycle
+  - car
+  - motorcycle
+  - bus
+  - truck
+  - dog
+  - cat
+  - bench
+
+# System Behavior
+system:
+  status_print_interval: 2.0      # Print status every N seconds (0 to disable)
+  detection_memory: 10.0          # Remember announced objects for N seconds
+  simulation_mode: false          # Set to true for testing without hardware
+

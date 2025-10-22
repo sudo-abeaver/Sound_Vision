@@ -1,0 +1,60 @@
+# Assistive Navigation System - Raspberry Pi Dependencies
+# ========================================================
+
+# Core ML/Vision
+numpy>=1.21.0,<2.0.0
+opencv-python>=4.5.0
+tflite-runtime>=2.14.0  # Lightweight TensorFlow Lite (Pi-optimized)
+
+# Alternative if tflite-runtime not available (larger):
+# tensorflow>=2.14.0
+
+# Audio
+pygame>=2.5.0  # For audio playback and mixing
+# Alternative: pyaudio, sounddevice
+
+# Configuration
+pyyaml>=6.0
+
+# GPIO (Raspberry Pi only - will fail gracefully on other platforms)
+RPi.GPIO>=0.7.0  # For ultrasonic sensor
+
+# Optional but recommended
+Pillow>=9.0.0  # Image processing utilities
+scipy>=1.7.0   # Signal processing (for advanced audio)
+
+# System utilities
+psutil>=5.9.0  # System monitoring
+
+# Installation Notes:
+# ===================
+# 
+# On Raspberry Pi 4 (Raspbian/Raspberry Pi OS):
+# ----------------------------------------------
+# 1. Update system first:
+#    sudo apt-get update && sudo apt-get upgrade
+#
+# 2. Install system dependencies:
+#    sudo apt-get install -y python3-pip python3-dev
+#    sudo apt-get install -y libatlas-base-dev libhdf5-dev
+#    sudo apt-get install -y python3-opencv  # Pre-built OpenCV (faster)
+#    sudo apt-get install -y espeak  # For text-to-speech
+#    sudo apt-get install -y portaudio19-dev  # For audio
+#    sudo apt-get install -y libsdl2-dev libsdl2-mixer-dev  # For pygame
+#
+# 3. Install Python packages:
+#    pip3 install -r requirements.txt
+#
+# For TFLite Runtime (smaller, faster):
+#    pip3 install --index-url https://google-coral.github.io/py-repo/ tflite_runtime
+#
+# Bluetooth Audio (optional):
+# ---------------------------
+# sudo apt-get install -y pulseaudio pulseaudio-module-bluetooth
+# sudo usermod -a -G bluetooth pi
+#
+# Auto-start on boot (optional):
+# ------------------------------
+# Add to /etc/rc.local before "exit 0":
+# cd /home/pi/assistive && python3 main.py &
+

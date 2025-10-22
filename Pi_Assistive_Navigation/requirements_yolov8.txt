@@ -1,0 +1,65 @@
+# Assistive Navigation System - YOLOv8 Version
+# ==============================================
+
+# Core ML/Vision
+numpy>=1.21.0,<2.0.0
+opencv-python>=4.5.0
+ultralytics>=8.0.0  # YOLOv8
+torch>=2.0.0  # PyTorch (for CLIP and YOLOv8)
+torchvision>=0.15.0
+transformers>=4.30.0  # HuggingFace for CLIP
+Pillow>=9.0.0
+
+# Audio
+pygame>=2.5.0
+# Alternative: pyaudio, sounddevice
+
+# Configuration
+pyyaml>=6.0
+python-dotenv>=1.0.0  # For .env file
+
+# GPIO (Raspberry Pi only)
+RPi.GPIO>=0.7.0
+
+# System utilities
+psutil>=5.9.0
+
+# Installation Notes for Raspberry Pi 4:
+# =======================================
+#
+# 1. System dependencies:
+#    sudo apt-get update && sudo apt-get upgrade -y
+#    sudo apt-get install -y python3-pip python3-dev
+#    sudo apt-get install -y libatlas-base-dev libopenblas-dev
+#    sudo apt-get install -y python3-opencv
+#    sudo apt-get install -y espeak
+#    sudo apt-get install -y portaudio19-dev
+#    sudo apt-get install -y libsdl2-dev libsdl2-mixer-dev
+#
+# 2. PyTorch for ARM (Raspberry Pi):
+#    # Use pre-built wheel for Pi 4
+#    pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+#    
+#    # Or install from piwheels (faster on Pi):
+#    pip3 install torch torchvision --extra-index-url https://www.piwheels.org/simple
+#
+# 3. Install other dependencies:
+#    pip3 install ultralytics transformers python-dotenv pygame pyyaml psutil pillow
+#
+# 4. YOLOv8 will auto-download yolov8n.pt on first run
+#    Or download manually: 
+#    wget https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.pt -P models/
+#
+# Performance on Pi 4:
+# --------------------
+# YOLOv8-nano: ~5-8 FPS @ 320x320 (CPU)
+# CLIP: ~2-3 FPS @ 224x224 (CPU)
+# Combined: Practical 1-2 FPS with alternating inference
+#
+# Tips for better performance:
+# - Use yolov8n (nano) not yolov8s/m/l
+# - Lower imgsz to 256 or 320
+# - Increase inference intervals in config
+# - Consider using INT8 quantized models
+# - Optional: Use Coral USB Accelerator for 10x speedup
+

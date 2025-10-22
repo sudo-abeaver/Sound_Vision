@@ -10,8 +10,10 @@ It uses the `ultralytics` package (YOLOv8) and OpenCV to load/save images.
 import argparse
 import os
 import sys
+from dotenv import load_dotenv
 
-# ...existing code...
+# Load environment variables from .env file
+load_dotenv()
 
 def parse_args():
     p = argparse.ArgumentParser(description="Run yolov8s detection on a single image")
