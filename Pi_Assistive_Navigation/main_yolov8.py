@@ -381,18 +381,21 @@ class AudioEngine:
         """Load and start playing soundscape for scene"""
         folder_path = self.soundscape_base / scene_folder
         if not folder_path.exists():
-            print(f"Soundscape folder not found: {folder_path}")
+            print(f"🎵 Soundscape folder not found: {folder_path}")
+            print(f"   Please add audio files (.mp3 or .wav) to: {folder_path}")
             return
         
         audio_files = list(folder_path.glob("*.wav")) + list(folder_path.glob("*.mp3"))
         if not audio_files:
-            print(f"No audio files in {folder_path}")
+            print(f"🎵 No audio files in {folder_path}")
+            print(f"   Please add audio files (.mp3 or .wav) to: {folder_path}")
             return
         
         new_file = random.choice(audio_files)
+        print(f"🎵 Attempting to play: {new_file}")
         
         if not PYGAME_AVAILABLE:
-            print(f"Would play: {new_file}")
+            print(f"🎵 [SIMULATION] Would play: {new_file}")
             return
         
         try:
@@ -403,13 +406,16 @@ class AudioEngine:
                 self.crossfade_progress = 0.0
                 self.music_channel_next.play(sound, loops=-1)
                 self.music_channel_next.set_volume(0.0)
+                print(f"🎵 Crossfading to: {new_file}")
             else:
                 self.current_soundscape = sound
                 self.music_channel_current.play(sound, loops=-1)
                 self.music_channel_current.set_volume(self.config['audio']['soundscape_volume'])
+                print(f"🎵 Now playing: {new_file}")
             
         except Exception as e:
-            print(f"Error loading soundscape: {e}")
+            print(f"🎵 Error loading soundscape: {e}")
+            print(f"   Make sure the audio file is valid: {new_file}")
     
     def update_crossfade(self, dt: float):
         """Update crossfade between soundscapes"""
@@ -432,7 +438,10 @@ class AudioEngine:
     
     def play_beep(self, frequency: int, duration: float):
         """Generate and play a beep tone"""
+        print(f"🔊 BEEP: {frequency}Hz for {duration:.2f}s")
+        
         if not PYGAME_AVAILABLE:
+            print(f"🔊 [SIMULATION] Beep would play: {frequency}Hz for {duration:.2f}s")
             return
         
         try:
@@ -455,7 +464,7 @@ class AudioEngine:
             self.set_ducking(True)
             
         except Exception as e:
-            print(f"Beep error: {e}")
+            print(f"🔊 Beep error: {e}")
     
     def speak(self, text: str, force: bool = False):
         """Text-to-speech using system TTS"""
@@ -466,6 +475,7 @@ class AudioEngine:
         self.last_speech_time = current_time
         self.set_ducking(True)
         
+        print(f"🗣️  SPEAKING: {text}")
         threading.Thread(target=self._speak_thread, args=(text,), daemon=True).start()
     
     def _speak_thread(self, text: str):
@@ -528,17 +538,21 @@ class AssistiveNavigationSystem:
         self.config = load_config(config_path)
         self.state = SystemState()
         
-        print("Initializing Ultrasonic Sensor...")
-        self.ultrasonic = UltrasonicSensor(
-            self.config['ultrasonic']['trig_pin'],
-            self.config['ultrasonic']['echo_pin'],
-            self.config['ultrasonic']['median_window']
-        )
+        print("📡 Initializing Ultrasonic Sensor...")
+        if RASPBERRY_PI:
+            self.ultrasonic = UltrasonicSensor(
+                self.config['ultrasonic']['trig_pin'],
+                self.config['ultrasonic']['echo_pin'],
+                self.config['ultrasonic']['median_window']
+            )
+        else:
+            print("📡 [SIMULATION] Ultrasonic sensor not available (not on Raspberry Pi)")
+            self.ultrasonic = UltrasonicSensor(23, 24, 5)  # Will use simulation mode
         
-        print("Initializing Vision Module (YOLOv8 + CLIP)...")
+        print("🤖 Initializing Vision Module (YOLOv8 + CLIP)...")
         self.vision = VisionModuleYOLO(self.config)
         
-        print("Initializing Audio Engine...")
+        print("🔊 Initializing Audio Engine...")
         self.audio = AudioEngine(self.config)
         
         self.camera = None
@@ -554,16 +568,29 @@ class AssistiveNavigationSystem:
     def init_camera(self):
         """Initialize camera"""
         try:
+            print("📷 Initializing camera...")
             self.camera = cv2.VideoCapture(0)
+            
+            # Set camera properties
             self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, self.config['vision']['camera_width'])
             self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config['vision']['camera_height'])
             self.camera.set(cv2.CAP_PROP_FPS, self.config['vision']['camera_fps'])
             
             if not self.camera.isOpened():
-                print("WARNING: Could not open camera")
+                print("⚠️  WARNING: Could not open camera")
+                print("   Make sure your webcam is connected and not in use by another app")
                 self.camera = None
+            else:
+                # Test camera
+                ret, frame = self.camera.read()
+                if ret:
+                    h, w = frame.shape[:2]
+                    print(f"📷 Camera initialized: {w}x{h} @ {self.config['vision']['camera_fps']} FPS")
+                else:
+                    print("⚠️  WARNING: Camera opened but cannot read frames")
+                    self.camera = None
         except Exception as e:
-            print(f"Camera init error: {e}")
+            print(f"📷 Camera init error: {e}")
             self.camera = None
     
     def ultrasonic_loop(self):
@@ -586,15 +613,17 @@ class AssistiveNavigationSystem:
                 if min_dist <= distance < max_dist:
                     self.state.current_zone = i
                     
-                    if 'continuous' in zone and zone['continuous']:
-                        if time.time() - self.last_beep > 0.5:
-                            self.audio.play_beep(zone['pitch'], 0.5)
-                            self.audio.speak("Stop", force=True)
-                            self.last_beep = time.time()
-                    elif zone['beep_interval'] > 0:
-                        if time.time() - self.last_beep > zone['beep_interval']:
-                            self.audio.play_beep(zone['pitch'], self.config['audio']['beep_duration'])
-                            self.last_beep = time.time()
+                    # Only play beeps if we have a real ultrasonic sensor
+                    if RASPBERRY_PI:
+                        if 'continuous' in zone and zone['continuous']:
+                            if time.time() - self.last_beep > 0.5:
+                                self.audio.play_beep(zone['pitch'], 0.5)
+                                self.audio.speak("Stop", force=True)
+                                self.last_beep = time.time()
+                        elif zone['beep_interval'] > 0:
+                            if time.time() - self.last_beep > zone['beep_interval']:
+                                self.audio.play_beep(zone['pitch'], self.config['audio']['beep_duration'])
+                                self.last_beep = time.time()
                     
                     break
             
@@ -638,7 +667,7 @@ class AssistiveNavigationSystem:
         soundscape_folder = scene_mapping.get(scene, 'indoor')
         
         if soundscape_folder != self.state.soundscape_folder:
-            print(f"Scene changed: {scene} -> {soundscape_folder}")
+            print(f"🌍 Scene changed: {scene} -> {soundscape_folder}")
             self.state.soundscape_folder = soundscape_folder
             self.audio.load_soundscape(soundscape_folder)
     
@@ -688,13 +717,13 @@ class AssistiveNavigationSystem:
     def start(self):
         """Start all system threads"""
         print("\n" + "="*60)
-        print("ASSISTIVE NAVIGATION SYSTEM STARTING (YOLOv8)")
+        print("🚀 ASSISTIVE NAVIGATION SYSTEM STARTING (YOLOv8)")
         print("="*60)
         print("Mode: Fully Autonomous")
-        print("- Collision avoidance: ACTIVE")
-        print("- Scene awareness: ACTIVE (CLIP)")
-        print("- Object detection: ACTIVE (YOLOv8)")
-        print("- Ambient audio: ACTIVE")
+        print("📡 Collision avoidance: ACTIVE" + (" (SIMULATION)" if not RASPBERRY_PI else ""))
+        print("🌍 Scene awareness: ACTIVE (CLIP)")
+        print("👁️  Object detection: ACTIVE (YOLOv8)")
+        print("🔊 Ambient audio: ACTIVE")
         print("="*60 + "\n")
         
         self.running = True
@@ -746,12 +775,12 @@ def main():
         system.start()
         
         while True:
-            time.sleep(1)
+            time.sleep(2)  # Print status every 2 seconds
             if system.running:
-                print(f"Distance: {system.state.distance:.2f}m | "
-                      f"Zone: {system.state.current_zone} | "
-                      f"Scene: {system.state.current_scene or 'N/A'} | "
-                      f"Soundscape: {system.state.soundscape_folder or 'N/A'}")
+                print(f"📊 Status: Distance={system.state.distance:.2f}m | "
+                      f"Zone={system.state.current_zone} | "
+                      f"Scene={system.state.current_scene or 'N/A'} | "
+                      f"Soundscape={system.state.soundscape_folder or 'N/A'}")
     
     except KeyboardInterrupt:
         print("\n\nReceived interrupt signal...")
